@@ -1,5 +1,5 @@
-# ResumeLM Dockerfile
-# Multi-stage build for development and production
+# ResumeLM Frontend Dockerfile
+# Multi-stage build for the Next.js frontend application
 
 # ==========================================
 # Build base - includes build tools for native modules
@@ -30,8 +30,10 @@ RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 # ==========================================
 FROM build-base AS deps
 
-# Copy package files
-COPY package.json pnpm-lock.yaml ./
+# Copy workspace configuration
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY frontend/package.json ./frontend/
+COPY shared/package.json ./shared/
 
 # Install all dependencies (including devDependencies for build)
 RUN pnpm install --frozen-lockfile
@@ -45,18 +47,22 @@ WORKDIR /app
 
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/frontend/node_modules ./frontend/node_modules
 
-# Copy package files (needed for pnpm commands)
-COPY package.json pnpm-lock.yaml ./
+# Copy workspace and package files
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY frontend/package.json ./frontend/
 
 # Copy config files (changes less frequently = better caching)
-COPY next.config.ts tsconfig.json tailwind.config.ts postcss.config.mjs ./
-COPY components.json eslint.config.mjs ./
+COPY frontend/next.config.ts frontend/tsconfig.json frontend/tailwind.config.ts frontend/postcss.config.mjs ./frontend/
+COPY frontend/components.json frontend/eslint.config.mjs ./frontend/
 
 # Copy source and assets
-COPY src ./src
-COPY public ./public
-COPY content ./content
+COPY frontend/src ./frontend/src
+COPY frontend/public ./frontend/public
+COPY frontend/content ./frontend/content
+
+WORKDIR /app/frontend
 
 EXPOSE 3000
 
@@ -74,22 +80,25 @@ WORKDIR /app
 
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/frontend/node_modules ./frontend/node_modules
 
-# Copy package files (needed for pnpm build)
-COPY package.json pnpm-lock.yaml ./
+# Copy workspace and package files
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY frontend/package.json ./frontend/
 
 # Copy config files (changes less frequently = better caching)
-COPY next.config.ts tsconfig.json tailwind.config.ts postcss.config.mjs ./
-COPY components.json eslint.config.mjs ./
+COPY frontend/next.config.ts frontend/tsconfig.json frontend/tailwind.config.ts frontend/postcss.config.mjs ./frontend/
+COPY frontend/components.json frontend/eslint.config.mjs ./frontend/
 
 # Copy source and assets
-COPY src ./src
-COPY public ./public
-COPY content ./content
+COPY frontend/src ./frontend/src
+COPY frontend/public ./frontend/public
+COPY frontend/content ./frontend/content
+
+WORKDIR /app/frontend
 
 # Build with placeholder values - replaced at runtime by entrypoint.sh
 # Base path uses placeholder in next.config.ts: /__NEXT_BASEPATH_PLACEHOLDER__
-# This allows a single image to work across all environments
 ENV NEXT_PUBLIC_SUPABASE_URL="__NEXT_PUBLIC_SUPABASE_URL__" \
     NEXT_PUBLIC_SUPABASE_ANON_KEY="__NEXT_PUBLIC_SUPABASE_ANON_KEY__" \
     NEXT_PUBLIC_SITE_URL="__NEXT_PUBLIC_SITE_URL__" \
@@ -110,8 +119,8 @@ RUN pnpm build
 FROM node:22-slim AS production
 
 # OCI labels for container metadata
-LABEL org.opencontainers.image.title="ResumeLM" \
-      org.opencontainers.image.description="AI-powered resume builder" \
+LABEL org.opencontainers.image.title="ResumeLM Frontend" \
+      org.opencontainers.image.description="AI-powered resume builder - Next.js frontend" \
       org.opencontainers.image.vendor="ResumeLM" \
       org.opencontainers.image.source="https://github.com/resumelm/resumelm"
 
@@ -137,20 +146,19 @@ RUN addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 nextjs \
     && chown nextjs:nodejs /app
 
-# Copy entrypoint script (must be before USER switch, owned by root, executable by all)
+# Copy entrypoint script
 COPY --chmod=755 docker/entrypoint.sh /entrypoint.sh
 
-# Copy built application from builder (owned by nextjs for write access during env injection)
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Copy built application from builder
+COPY --from=builder --chown=nextjs:nodejs /app/frontend/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/static ./.next/static
 
 USER nextjs
 
 EXPOSE 3000
 
-# Health check for container orchestration (k8s, compose, etc.)
-# Uses TCP check since no dedicated health endpoint exists
+# Health check for container orchestration
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD node -e "require('net').createConnection(3000, 'localhost').on('connect', () => process.exit(0)).on('error', () => process.exit(1))"
 

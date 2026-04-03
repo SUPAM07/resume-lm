@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![ResumeLM Logo](public/og.webp)
+![ResumeLM Logo](frontend/public/og.webp)
 
 **🚀 The AI-Powered Resume Builder That Gets You Hired**
 
@@ -30,7 +30,7 @@
 ## ✨ Key Features & Screenshots
 
 ### 🤖 AI-Powered Resume Assistant
-![AI Resume Assistant](public/SS%20Chat.png)
+![AI Resume Assistant](frontend/public/SS%20Chat.png)
 
 **90% More Effective Bullet Points**
 - Smart content suggestions based on your experience
@@ -39,14 +39,14 @@
 - ATS-friendly formatting and keyword optimization
 
 ### 📊 Beautiful Resume Dashboard
-![Resume Dashboard](public/Dashboard%20Image.png)
+![Resume Dashboard](frontend/public/Dashboard%20Image.png)
 
 **Organize Your Entire Job Search**
 - Centralized resume management system
 - Create base resumes and tailored versions
 
 ### 📈 Resume Performance Scoring
-![Resume Scoring](public/SS%20Score.png)
+![Resume Scoring](frontend/public/SS%20Score.png)
 
 **3x Higher Response Rates**
 - ATS compatibility scoring and analysis
@@ -55,7 +55,7 @@
 - Performance metrics and analytics
 
 ### 📝 AI Cover Letter Generator
-![Cover Letter Generator](public/SS%20Cover%20Letter.png)
+![Cover Letter Generator](frontend/public/SS%20Cover%20Letter.png)
 
 **Save 30+ Minutes Per Application**
 - Tailored to match specific job requirements
@@ -118,10 +118,36 @@ ResumeLM is built with a mobile-first approach, ensuring your resume building ex
 ## 🔧 Installation & Setup
 
 ### Prerequisites
-- Node.js 18+ 
+- Node.js 20+
 - pnpm (recommended) or npm
-- PostgreSQL database
-- Supabase account
+- PostgreSQL database (via Supabase)
+
+### Project Structure
+
+This project uses a **monorepo** layout with a clear frontend/backend separation:
+
+```
+resume-lm/
+├── frontend/          # Next.js 15 app (pages, components, UI)
+│   ├── src/app/       # Next.js App Router pages & API routes
+│   ├── src/components/ # React components
+│   ├── src/lib/       # Frontend utilities & AI models
+│   ├── src/utils/     # Server actions & Supabase helpers
+│   ├── public/        # Static assets
+│   └── package.json
+├── backend/           # Standalone Express API (for microservices use)
+│   ├── src/api/       # Express route handlers
+│   ├── src/middleware/ # Auth & validation middleware
+│   ├── src/services/  # Business logic services
+│   └── package.json
+├── shared/            # Shared TypeScript types & utilities
+│   ├── src/types.ts   # Core domain types
+│   ├── src/constants.ts # Shared constants
+│   └── package.json
+├── docker/            # Docker configs for all services
+├── pnpm-workspace.yaml # pnpm monorepo workspace config
+└── package.json       # Root workspace orchestration
+```
 
 ### Quick Start
 
@@ -131,50 +157,61 @@ git clone https://github.com/olyaiy/resume-lm.git
 cd resume-lm
 ```
 
-2. **Install dependencies**
+2. **Install all dependencies** (installs for frontend, backend, and shared)
 ```bash
 pnpm install
 ```
 
-3. **Environment setup**
+3. **Frontend environment setup**
 ```bash
-cp .env.example .env.local
+cp frontend/.env.example frontend/.env.local
 ```
 
-4. **Configure environment variables**
+4. **Configure environment variables** (edit `frontend/.env.local`)
 ```env
-# Database
-DATABASE_URL=your_postgresql_url
-SUPABASE_URL=your_supabase_url
-SUPABASE_ANON_KEY=your_supabase_anon_key
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 
-# AI Services
+# AI Services (add at least one)
 OPENAI_API_KEY=your_openai_key
 ANTHROPIC_API_KEY=your_claude_key
-GOOGLE_AI_API_KEY=your_gemini_key
-
-# Authentication
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=your_secret_key
 
 # Payments (Optional)
 STRIPE_SECRET_KEY=your_stripe_secret
-STRIPE_PUBLISHABLE_KEY=your_stripe_public
 ```
 
 5. **Database setup**
 ```bash
-# Run the schema.sql file in your Supabase SQL editor
-# Or use the Supabase CLI:
-supabase db push --db-url=your_supabase_db_url schema.sql
+# Run the schema in your Supabase SQL editor
+# File: backend/db/schema.sql
 ```
 
-6. **Start development server**
+6. **Start the frontend development server**
 ```bash
-pnpm dev
+pnpm frontend:dev
+# or from the frontend directory:
+cd frontend && pnpm dev
 ```
 
 Visit `http://localhost:3000` to see your local ResumeLM instance!
+
+### Running the Backend (Optional)
+
+The standalone Express backend provides a separate API service for microservices architectures:
+
+```bash
+# Setup backend environment
+cp backend/.env.example backend/.env
+
+# Start backend dev server
+pnpm backend:dev
+# or from the backend directory:
+cd backend && pnpm dev
+```
+
+Backend API will be available at `http://localhost:4000`
 
 ### 🐳 Docker Setup (Alternative)
 
@@ -182,7 +219,7 @@ Run the complete stack locally with Docker Compose - includes Supabase, PostgreS
 
 ```bash
 # 1. Copy environment file and add your AI API key
-cp .env.example .env.local
+cp frontend/.env.example .env.local
 # Edit .env.local and add at least one: OPENAI_API_KEY, ANTHROPIC_API_KEY, or OPENROUTER_API_KEY
 
 # 2. Start Docker services
@@ -192,16 +229,17 @@ docker compose --env-file ../.env.local up -d
 # 3. Wait for services to be healthy (~60 seconds)
 docker compose --env-file ../.env.local ps
 
-# 4. Run the app locally (from project root)
+# 4. Run the frontend locally (from project root)
 cd ..
-pnpm dev
+pnpm frontend:dev
 ```
 
 **Login:** http://localhost:3000 with `admin@admin.com` / `Admin123` (Pro subscription auto-granted)
 
 | Service | URL | Description |
 |---------|-----|-------------|
-| **App** | http://localhost:3000 | Next.js application |
+| **Frontend** | http://localhost:3000 | Next.js application |
+| **Backend API** | http://localhost:4000 | Express API (full profile only) |
 | **Supabase API** | http://localhost:54321 | API Gateway |
 | **Supabase Studio** | http://localhost:54323 | Database dashboard |
 | **Redis Commander** | http://localhost:8081 | Redis management UI |
